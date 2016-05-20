@@ -4,6 +4,7 @@ require 'rbconfig'
 
 LIBDIR      = RbConfig::CONFIG['libdir']
 INCLUDEDIR  = RbConfig::CONFIG['includedir']
+SITEARCH = RbConfig::CONFIG['sitearch']
 
 OS = case RbConfig::CONFIG['host_os']
      when /mswin|msys|mingw|cygwin|bccwin|wince|emc/
@@ -54,7 +55,7 @@ LIB_DIRS = [LIBDIR, "#{CMARK_BUILD_DIR}/src"]
 dir_config('cmark', HEADER_DIRS, LIB_DIRS)
 
 # don't even bother to do this check if using OS X's messed up system Ruby: http://git.io/vsxkn
-if sitearch !~ /^universal-darwin/ && OS == :windows
+if SITEARCH !~ /^universal-darwin/ && OS != :windows
   abort 'libcmark is missing.' unless find_library('cmark', 'cmark_parse_document')
 end
 
