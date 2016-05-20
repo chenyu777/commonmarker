@@ -1,14 +1,27 @@
 require 'mkmf'
 require 'fileutils'
 require 'rbconfig'
-host_os = RbConfig::CONFIG['host_os']
-sitearch = RbConfig::CONFIG['sitearch']
 
 LIBDIR      = RbConfig::CONFIG['libdir']
 INCLUDEDIR  = RbConfig::CONFIG['includedir']
 
-unless find_executable('cmake')
-  abort "\n\n\n[ERROR]: cmake is required and not installed. Get it here: http://www.cmake.org/\n\n\n"
+OS = case RbConfig::CONFIG['host_os']
+     when /mswin|msys|mingw|cygwin|bccwin|wince|emc/
+       :windows
+     when /darwin|mac os/
+       :macosx
+     when /linux/
+       :linux
+     when /solaris|bsd/
+       :unix
+     else
+       fail TypeError, "unknown os: #{host_os.inspect}"
+     end
+
+abort "\n\n\n[ERROR]: cmake is required.\n\n\n" unless find_executable('cmake')
+
+if OS == :windows
+  abort "\n\n\n[ERROR]: nmake is required.\n\n\n" unless find_executable('nmake')
 end
 
 ROOT_TMP = File.expand_path(File.join(File.dirname(__FILE__), '..', '..', 'tmp'))
@@ -22,11 +35,17 @@ if File.directory?(CMARK_BUILD_DIR) && !File.exist?(ROOT_TMP)
 end
 FileUtils.mkdir_p(CMARK_BUILD_DIR)
 
-Dir.chdir(CMARK_BUILD_DIR) do
-  system 'cmake .. -DCMAKE_C_FLAGS=-fPIC'
-  system 'make libcmark_static'
-  # rake-compiler seems to complain about this line, not sure why it's messing with it
-  FileUtils.rm_rf(File.join(CMARK_BUILD_DIR, 'Testing', 'Temporary'))
+if OS == :windows
+  Dir.chdir(CMARK_BUILD_DIR) do
+    system 'cmake  -G "NMake Makefiles"  -D CMAKE_BUILD_TYPE=  -D CMAKE_INSTALL_PREFIX=windows .. && cd ..'
+  end
+else
+  Dir.chdir(CMARK_BUILD_DIR) do
+    system 'cmake .. -DCMAKE_C_FLAGS=-fPIC'
+    system 'make libcmark_static'
+    # rake-compiler seems to complain about this line, not sure why it's messing with it
+    FileUtils.rm_rf(File.join(CMARK_BUILD_DIR, 'Testing', 'Temporary'))
+  end
 end
 
 HEADER_DIRS = [INCLUDEDIR]
@@ -35,7 +54,7 @@ LIB_DIRS = [LIBDIR, "#{CMARK_BUILD_DIR}/src"]
 dir_config('cmark', HEADER_DIRS, LIB_DIRS)
 
 # don't even bother to do this check if using OS X's messed up system Ruby: http://git.io/vsxkn
-unless sitearch =~ /^universal-darwin/
+if sitearch !~ /^universal-darwin/ && OS == :windows
   abort 'libcmark is missing.' unless find_library('cmark', 'cmark_parse_document')
 end
 
